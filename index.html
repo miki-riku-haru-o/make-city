@@ -1,0 +1,573 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>五目並べ</title>
+  <style>
+    :root {
+      --bg: #efe4ce;
+      --panel: #fff8eb;
+      --line: #4f3f2d;
+      --wood: #d9b47c;
+      --wood-dark: #c59c60;
+      --text: #2d241a;
+      --accent: #1f6f5d;
+      --danger: #b34545;
+      --board-cols: 11;
+      --board-rows: 15;
+      --cell-size: 34px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 10%, #fff5db 0, #fff5db00 30%),
+        radial-gradient(circle at 80% 8%, #ffe6c2 0, #ffe6c200 32%),
+        linear-gradient(180deg, #f4e7d1 0%, var(--bg) 100%);
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .app {
+      width: min(900px, 100%);
+      display: grid;
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 3px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 6px 0 #d8c3a3;
+      padding: 12px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(22px, 4vw, 32px);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .chip {
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      padding: 6px 10px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    select, button {
+      border: 2px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      padding: 7px 10px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    #message {
+      margin: 10px 0 0;
+      min-height: 1.5em;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .board-wrap {
+      overflow: auto;
+      max-width: 100%;
+    }
+
+    .game-layout {
+      display: grid;
+      grid-template-columns: 1fr 250px;
+      gap: 12px;
+      align-items: start;
+    }
+
+    #board {
+      width: max-content;
+      display: grid;
+      grid-template-columns: repeat(var(--board-cols), var(--cell-size));
+      grid-template-rows: repeat(var(--board-rows), var(--cell-size));
+      background: var(--wood);
+      border: 3px solid var(--line);
+      border-radius: 8px;
+      padding: 6px;
+      gap: 0;
+    }
+
+    .cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      border: 1px solid #8b6a3f;
+      background: linear-gradient(180deg, var(--wood) 0%, var(--wood-dark) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .cell:hover::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00000022;
+    }
+
+    .cell.black::before,
+    .cell.white::before {
+      content: "";
+      width: 80%;
+      height: 80%;
+      border-radius: 50%;
+      display: block;
+      box-shadow: inset 0 -2px 5px #0000003d;
+    }
+
+    .cell.black::before {
+      background: radial-gradient(circle at 35% 30%, #6e6e6e 0%, #111 70%);
+    }
+
+    .cell.white::before {
+      background: radial-gradient(circle at 35% 30%, #fff 0%, #dddddd 70%);
+      border: 1px solid #8d8d8d;
+    }
+
+    .cell:disabled {
+      cursor: default;
+    }
+
+    .cell:disabled:hover::after {
+      content: none;
+    }
+
+    .winner {
+      outline: 3px solid #ffde6b;
+      outline-offset: -3px;
+      z-index: 1;
+    }
+
+    .danger {
+      color: var(--danger) !important;
+    }
+
+    .rules {
+      border: 2px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 10px;
+    }
+
+    .rules h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .rules table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .rules th,
+    .rules td {
+      border: 1px solid #c9b18e;
+      padding: 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .rules th {
+      background: #f7ecd9;
+      width: 34%;
+    }
+
+    @media (max-width: 680px) {
+      :root {
+        --cell-size: 28px;
+      }
+
+      .game-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="panel">
+      <h1>五目並べ</h1>
+      <div class="controls">
+        <span class="chip">手番: <span id="turnLabel">黒</span></span>
+        <span class="chip">モード: <span id="modeLabel">人間 vs 人間</span></span>
+        <span class="chip">AIレベル: <span id="levelLabel">ふつう</span></span>
+        <label>
+          <select id="modeSelect">
+            <option value="pvp">人間 vs 人間</option>
+            <option value="pve">人間 vs AI</option>
+          </select>
+        </label>
+        <label>
+          <select id="aiLevelSelect">
+            <option value="easy">やさしい</option>
+            <option value="normal" selected>ふつう</option>
+            <option value="hard">つよい</option>
+          </select>
+        </label>
+        <button id="resetBtn">リセット</button>
+      </div>
+      <p id="message">黒からスタート。</p>
+    </section>
+
+    <section class="panel game-layout">
+      <div class="board-wrap">
+        <div id="board"></div>
+      </div>
+      <aside class="rules" aria-label="ルール表">
+        <h2>ルール表</h2>
+        <table>
+          <tbody>
+            <tr>
+              <th>目的</th>
+              <td>自分の石を縦・横・斜めのどれかで先に5つ並べる。</td>
+            </tr>
+            <tr>
+              <th>手番</th>
+              <td>黒が先手。黒→白の順で1手ずつ置く。</td>
+            </tr>
+            <tr>
+              <th>置ける場所</th>
+              <td>空いているマスのみ。すでに石がある場所には置けない。</td>
+            </tr>
+            <tr>
+              <th>勝利</th>
+              <td>5つ以上つながった時点で勝ち。</td>
+            </tr>
+            <tr>
+              <th>引き分け</th>
+              <td>盤面が全部埋まり、どちらも5連がない場合。</td>
+            </tr>
+            <tr>
+              <th>モード</th>
+              <td>「人間 vs 人間」「人間 vs AI」を上の選択で切り替え。</td>
+            </tr>
+            <tr>
+              <th>AIレベル</th>
+              <td>人間 vs AIのときだけ「やさしい/ふつう/つよい」を選べる。</td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const COLS = 11;
+    const ROWS = 15;
+    const EMPTY = 0;
+    const BLACK = 1;
+    const WHITE = 2;
+    const AI_LEVELS = {
+      easy: { label: "やさしい", mistakeRate: 0.3, blockWeight: 0.5, noiseMax: 90, thinkMs: 160 },
+      normal: { label: "ふつう", mistakeRate: 0.18, blockWeight: 0.75, noiseMax: 50, thinkMs: 220 },
+      hard: { label: "つよい", mistakeRate: 0.04, blockWeight: 1.05, noiseMax: 20, thinkMs: 320 }
+    };
+
+    const ui = {
+      board: document.getElementById("board"),
+      turnLabel: document.getElementById("turnLabel"),
+      modeLabel: document.getElementById("modeLabel"),
+      levelLabel: document.getElementById("levelLabel"),
+      modeSelect: document.getElementById("modeSelect"),
+      aiLevelSelect: document.getElementById("aiLevelSelect"),
+      resetBtn: document.getElementById("resetBtn"),
+      message: document.getElementById("message")
+    };
+
+    const state = {
+      mode: "pvp",
+      aiLevel: "normal",
+      board: [],
+      turn: BLACK,
+      gameOver: false,
+      winnerCells: [],
+      aiBusy: false
+    };
+
+    function initBoard() {
+      state.board = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY));
+      state.turn = BLACK;
+      state.gameOver = false;
+      state.winnerCells = [];
+      state.aiBusy = false;
+    }
+
+    function inBounds(x, y) {
+      return x >= 0 && x < COLS && y >= 0 && y < ROWS;
+    }
+
+    function renderBoard() {
+      ui.board.innerHTML = "";
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const v = state.board[y][x];
+          const btn = document.createElement("button");
+          btn.className = "cell";
+          btn.dataset.x = String(x);
+          btn.dataset.y = String(y);
+          if (v === BLACK) btn.classList.add("black");
+          if (v === WHITE) btn.classList.add("white");
+          if (state.winnerCells.some((c) => c[0] === x && c[1] === y)) {
+            btn.classList.add("winner");
+          }
+          if (v !== EMPTY || state.gameOver || state.aiBusy) {
+            btn.disabled = true;
+          }
+          btn.addEventListener("click", onCellClick);
+          ui.board.appendChild(btn);
+        }
+      }
+    }
+
+    function updateHeader() {
+      ui.turnLabel.textContent = state.turn === BLACK ? "黒" : "白";
+      ui.modeLabel.textContent = state.mode === "pvp" ? "人間 vs 人間" : "人間 vs AI";
+      ui.levelLabel.textContent = AI_LEVELS[state.aiLevel].label;
+      ui.aiLevelSelect.disabled = state.mode !== "pve";
+    }
+
+    function setMessage(text, isDanger = false) {
+      ui.message.textContent = text;
+      ui.message.classList.toggle("danger", isDanger);
+    }
+
+    function countDirection(x, y, dx, dy, color) {
+      let n = 0;
+      const cells = [];
+      let cx = x;
+      let cy = y;
+      while (inBounds(cx, cy) && state.board[cy][cx] === color) {
+        n += 1;
+        cells.push([cx, cy]);
+        cx += dx;
+        cy += dy;
+      }
+      return { n, cells };
+    }
+
+    function checkWin(x, y, color) {
+      const dirs = [
+        [1, 0],
+        [0, 1],
+        [1, 1],
+        [1, -1]
+      ];
+
+      for (const [dx, dy] of dirs) {
+        const a = countDirection(x, y, dx, dy, color);
+        const b = countDirection(x, y, -dx, -dy, color);
+        const line = [...b.cells.reverse().slice(0, -1), ...a.cells];
+        if (a.n + b.n - 1 >= 5) {
+          return line;
+        }
+      }
+      return null;
+    }
+
+    function isBoardFull() {
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (state.board[y][x] === EMPTY) return false;
+        }
+      }
+      return true;
+    }
+
+    function placeStone(x, y, color) {
+      if (state.board[y][x] !== EMPTY || state.gameOver) return false;
+      state.board[y][x] = color;
+
+      const winCells = checkWin(x, y, color);
+      if (winCells) {
+        state.gameOver = true;
+        state.winnerCells = winCells;
+        setMessage(`${color === BLACK ? "黒" : "白"}の勝ち！`, false);
+      } else if (isBoardFull()) {
+        state.gameOver = true;
+        setMessage("引き分け。", false);
+      } else {
+        state.turn = color === BLACK ? WHITE : BLACK;
+        setMessage(`${state.turn === BLACK ? "黒" : "白"}の手番。`, false);
+      }
+
+      updateHeader();
+      renderBoard();
+      return true;
+    }
+
+    function onCellClick(event) {
+      if (state.gameOver || state.aiBusy) return;
+      const x = Number(event.currentTarget.dataset.x);
+      const y = Number(event.currentTarget.dataset.y);
+
+      if (state.mode === "pve" && state.turn === WHITE) return;
+
+      const moved = placeStone(x, y, state.turn);
+      if (!moved) return;
+
+      if (state.mode === "pve" && !state.gameOver && state.turn === WHITE) {
+        runAiTurn();
+      }
+    }
+
+    function evaluateMove(x, y, color) {
+      state.board[y][x] = color;
+      const winLine = checkWin(x, y, color);
+      state.board[y][x] = EMPTY;
+      if (winLine) return 100000;
+
+      let score = 0;
+      const dirs = [
+        [1, 0],
+        [0, 1],
+        [1, 1],
+        [1, -1]
+      ];
+
+      for (const [dx, dy] of dirs) {
+        const a = countLineLength(x, y, dx, dy, color);
+        const b = countLineLength(x, y, -dx, -dy, color);
+        const total = a + b + 1;
+        if (total >= 4) score += 5000;
+        else if (total === 3) score += 450;
+        else if (total === 2) score += 60;
+        else score += 8;
+      }
+
+      const centerX = (COLS - 1) / 2;
+      const centerY = (ROWS - 1) / 2;
+      const dist = Math.abs(x - centerX) + Math.abs(y - centerY);
+      score += Math.max(0, 18 - dist);
+      return score;
+    }
+
+    function countLineLength(x, y, dx, dy, color) {
+      let len = 0;
+      let cx = x + dx;
+      let cy = y + dy;
+      while (inBounds(cx, cy) && state.board[cy][cx] === color) {
+        len += 1;
+        cx += dx;
+        cy += dy;
+      }
+      return len;
+    }
+
+    function findAiMove() {
+      const level = AI_LEVELS[state.aiLevel];
+      let best = null;
+      const empties = [];
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (state.board[y][x] !== EMPTY) continue;
+          empties.push([x, y]);
+
+          const selfScore = evaluateMove(x, y, WHITE);
+          const blockScore = evaluateMove(x, y, BLACK) * level.blockWeight;
+          const noise = Math.random() * level.noiseMax;
+          const total = selfScore + blockScore + noise;
+
+          if (!best || total > best.score) {
+            best = { x, y, score: total };
+          }
+        }
+      }
+
+      if (!best) return null;
+
+      // たまにわざと甘い手を選んで、難易度を下げる。
+      if (Math.random() < level.mistakeRate && empties.length > 0) {
+        const pick = empties[Math.floor(Math.random() * empties.length)];
+        return { x: pick[0], y: pick[1], score: 0 };
+      }
+
+      return best;
+    }
+
+    function runAiTurn() {
+      const level = AI_LEVELS[state.aiLevel];
+      state.aiBusy = true;
+      renderBoard();
+      setMessage("AIが考え中...", false);
+
+      setTimeout(() => {
+        const move = findAiMove();
+        state.aiBusy = false;
+        if (!move || state.gameOver) {
+          renderBoard();
+          return;
+        }
+        placeStone(move.x, move.y, WHITE);
+      }, level.thinkMs);
+    }
+
+    function resetGame() {
+      initBoard();
+      updateHeader();
+      setMessage("黒からスタート。", false);
+      renderBoard();
+    }
+
+    function bindEvents() {
+      ui.modeSelect.addEventListener("change", () => {
+        state.mode = ui.modeSelect.value;
+        resetGame();
+      });
+      ui.aiLevelSelect.addEventListener("change", () => {
+        state.aiLevel = ui.aiLevelSelect.value;
+        updateHeader();
+        if (state.mode === "pve") {
+          resetGame();
+        }
+      });
+      ui.resetBtn.addEventListener("click", resetGame);
+    }
+
+    function bootstrap() {
+      initBoard();
+      bindEvents();
+      updateHeader();
+      renderBoard();
+      setMessage("黒からスタート。", false);
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>
